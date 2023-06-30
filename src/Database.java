@@ -1,151 +1,140 @@
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-
-public class Database extends ReentrantLock {
+/**
+ * A simulated database class that allows multiple readers and a single writer to access the data.
+ */
+public class Database {
     private Map<String, String> data;
-    private Condition canRead;
-    private Condition canWrite;
-    private Lock lock;
-    private int howManyReaders;
+    private int howManyReaders = 0;
     private int maxReaders;
-    private boolean writer;
-    private final Thread threadWriter;
-    private Set<Thread> threadReaders;
+    private boolean writer = false;
 
-
+    /**
+     * Constructs a new Database instance with the specified maximum number of readers.
+     *
+     * @param maxNumOfReaders The maximum number of readers allowed to access the database concurrently.
+     */
     public Database(int maxNumOfReaders) {
         data = new HashMap<>();
-        lock = new ReentrantLock();
-        canRead = lock.newCondition();
-        canWrite = lock.newCondition();
-        howManyReaders = 0;
         maxReaders = maxNumOfReaders;
-        writer = false;
-        threadWriter = null;
-        threadReaders = new HashSet<>();
-
-
     }
 
+    /**
+     * Puts the specified key-value pair into the database.
+     *
+     * @param key   The key to be inserted.
+     * @param value The value to be associated with the key.
+     */
     public void put(String key, String value) {
         data.put(key, value);
     }
 
+    /**
+     * Retrieves the value associated with the specified key from the database.
+     *
+     * @param key The key whose associated value is to be retrieved.
+     * @return The value associated with the key, or null if the key is not found.
+     */
     public String get(String key) {
         return data.get(key);
     }
 
+    /**
+     * Tries to acquire a read lock on the database.
+     * This method allows a thread to check if it can acquire a read lock without blocking.
+     *
+     * @return true if the read lock is acquired, false otherwise.
+     */
     public boolean readTryAcquire() {
-        lock.lock();
-        try {
-            if (writer || howManyReaders >= maxReaders) {
-                return false;
-            } else {
+        synchronized (this) {
+            if (howManyReaders < maxReaders && !writer) {
                 howManyReaders++;
-                threadReaders.add(Thread.currentThread());
                 return true;
             }
-        } finally {
-            lock.unlock();
+            return false;
         }
     }
-        public void readAcquire() {
-            lock.lock();
-            try {
-                while (writer || howManyReaders >= maxReaders ) {
-                    canRead.await(); // Wait until no writer is active
+
+    /**
+     * Acquires a read lock on the database.
+     * This method blocks the calling thread until it can acquire the read lock.
+     */
+    public void readAcquire() {
+        synchronized (this) {
+            while (writer || howManyReaders >= maxReaders) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-                howManyReaders++;
-                threadReaders.add(Thread.currentThread());
             }
-            catch (InterruptedException e){
-                Thread.currentThread().interrupt();
-
-            }
-
-            finally {
-                lock.unlock();
-            }
+            howManyReaders++;
         }
+    }
 
-    public void readRelease(){
-        lock.lock();
-        try {
-            if (howManyReaders == 0 || !threadReaders.contains(Thread.currentThread())) {
-                throw new IllegalMonitorStateException("Attempted release without active read");
+    /**
+     * Releases the read lock on the database.
+     * This method must be called by a thread that previously acquired the read lock.
+     * It notifies waiting threads if there are no more readers.
+     */
+    public void readRelease() {
+        synchronized (this) {
+            if (howManyReaders <= 0) {
+                throw new IllegalMonitorStateException("Illegal read release attempt");
             }
             howManyReaders--;
-            threadReaders.remove(Thread.currentThread());
-            if (howManyReaders < maxReaders) {
-                canRead.notifyAll(); // Notify waiting readers that is a place to read
+            if (howManyReaders == 0) {
+                notifyAll();
             }
-        }
-        catch (IllegalMonitorStateException e){
-            Thread.currentThread().interrupt();
-
-        }
-        finally {
-            lock.unlock();
         }
     }
 
-
-
-    public void writeAcquire(){
-        lock.lock();
-        try {
-            while (howManyReaders > 0 || writer) {
-                canWrite.await(); // Wait until no readers or writer is active
+    /**
+     * Acquires a write lock on the database.
+     * This method blocks the calling thread until it can acquire the write lock.
+     */
+    public void writeAcquire() {
+        synchronized (this) {
+            while (writer || howManyReaders > 0) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
             writer = true;
         }
-            catch (InterruptedException e){
-                Thread.currentThread().interrupt();
-
-            }
-        finally {
-            lock.unlock();
-        }
     }
 
+    /**
+     * Tries to acquire a write lock on the database.
+     * This method allows a thread to check if it can acquire a write lock without blocking.
+     *
+     * @return true if the write lock is acquired, false otherwise.
+     */
     public boolean writeTryAcquire() {
-        lock.lock();
-        try {
-            if (howManyReaders > 0 || writer) {
-                return false;
-            } else {
+        synchronized (this) {
+            if (!writer && howManyReaders == 0) {
                 writer = true;
                 return true;
             }
-        } finally {
-            lock.unlock();
+            return false;
         }
     }
 
-
-
+    /**
+     * Releases the write lock on the database.
+     * This method must be called by a thread that previously acquired the write lock.
+     * It notifies waiting threads that the writer has released the lock.
+     */
     public void writeRelease() {
-        lock.lock();
-        try {
+        synchronized (this) {
             if (!writer) {
-                throw new IllegalMonitorStateException("Attempted release without active write");
+                throw new IllegalMonitorStateException("Illegal write release attempt");
             }
             writer = false;
-            canWrite.notifyAll(); // Notify waiting threads that a write operation has finished
-            canRead.notifyAll(); // Notify waiting readers that a write operation has finished
-        }
-        catch (IllegalMonitorStateException e){
-            Thread.currentThread().interrupt();
-
-        }
-        finally {
-            lock.unlock();
+            notifyAll();
         }
     }
 }

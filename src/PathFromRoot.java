@@ -16,7 +16,6 @@ public class PathFromRoot {
      * @return True if the path exists, false otherwise.
      */
     public static boolean doesPathExist(BinNode<Character> root, String str) {
-
         if (str.isEmpty())
             return true;
         if (root != null && root.getData() == str.charAt(0)) {
