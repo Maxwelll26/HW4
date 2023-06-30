@@ -1,9 +1,9 @@
 public class Main {
     public static void main(String[] args) {
-        testPartA();
-        //testPartB();
+        //testPartA();
+        testPartB();
     }
-
+/*
     private static void testPartA() {
         System.out.println("Testing part A...");
         testPartA1();
@@ -50,7 +50,9 @@ public class Main {
         }
     }
 
-    /*private static void testPartB() {
+ */
+
+    private static void testPartB() {
         System.out.println("Testing part B...");
         int numOfReaders = 10;  // Note: You cannot assume this is the only value!
         testExceptions(numOfReaders);
@@ -260,5 +262,5 @@ class Writer extends Worker {
         } finally {
             db.writeRelease();
         }
-    }*/
+    }
 }
