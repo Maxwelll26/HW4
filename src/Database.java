@@ -1,4 +1,5 @@
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
@@ -27,6 +28,7 @@ public class Database extends ReentrantLock {
         maxReaders = maxNumOfReaders;
         writer = false;
         threadWriter = null;
+        threadReaders = new HashSet<>();
 
 
     }
@@ -83,7 +85,12 @@ public class Database extends ReentrantLock {
             if (howManyReaders < maxReaders) {
                 canRead.notifyAll(); // Notify waiting readers that is a place to read
             }
-        } finally {
+        }
+        catch (IllegalMonitorStateException e){
+            Thread.currentThread().interrupt();
+
+        }
+        finally {
             lock.unlock();
         }
     }
@@ -132,7 +139,12 @@ public class Database extends ReentrantLock {
             writer = false;
             canWrite.notifyAll(); // Notify waiting threads that a write operation has finished
             canRead.notifyAll(); // Notify waiting readers that a write operation has finished
-        } finally {
+        }
+        catch (IllegalMonitorStateException e){
+            Thread.currentThread().interrupt();
+
+        }
+        finally {
             lock.unlock();
         }
     }
